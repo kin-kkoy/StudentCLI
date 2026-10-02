@@ -2,6 +2,7 @@
 
 using CanvasRecords;
 using TerminalHub;
+using Google.Apis.Util;
 
 
 DotNetEnv.Env.Load();
@@ -16,60 +17,132 @@ var googleClientSecrets = new ClientSecrets
 
 // ================================== CANVAS ==================================
 
+// For testing purposes:
 string domain = Environment.GetEnvironmentVariable("CANVAS_DOMAIN") ?? throw new InvalidOperationException("CANVAS_DOMAIN not found in .env");
 string accessToken = Environment.GetEnvironmentVariable("CANVAS_TOKEN") ?? throw new InvalidOperationException("CANVAS_TOKEN not found in .env");
 
 var canvas = new CanvasService(domain, accessToken);
 Console.WriteLine("Connecting to Canvas...\n");
 
-// List<CourseAnnouncement> announcements = await canvas.FetchCourseAnnouncementsAsync(testID);
+if(canvas is null)
+{
+    Console.WriteLine("Canvas not loaded properly");
+    Environment.Exit(0);
+}
 
-// foreach(var announcement in announcements)
-// {
-//     Console.WriteLine($"[ID: {announcement.Id}]");
-//     Console.WriteLine($"By: {announcement.ProfessorName}  on  {announcement.PostedAt: MM-dd-yyyy}");
-//     Console.WriteLine(new string('-', 50)); // replace this later with message if ever.
-// }
+// Menu - lazy load style
+ShowMenu();
+Console.WriteLine("\nFetching Courses...");
+List<Course> courses = await canvas.FetchCurrentSemesterCourses(new DateTime(2026, 08, 01)); // Sem is hardcoded for now
+Console.WriteLine("=== COURSES:");
+foreach (var course in courses)
+{
+    Console.WriteLine($"[ {course.CourseCode} ]\t{course.Name}");
+}
+Console.WriteLine("------------------------------------");
+int choice = GetChoice();
+
+switch (choice)
+{
+    case 1:
+        
+        await FetchDashboard();
+        break;
+    case 2:
+        await FetchAnnouncements();
+        break;
+    // case 3:
+
+    //     break;
+    default:
+        Console.WriteLine("Choice not found! Exiting program");
+        Environment.Exit(0);
+        break;
+}
+
+
+async Task FetchAnnouncements()
+{
+    Console.Write("Course Choice:  ");
+    long.TryParse(Console.ReadLine(), out long courseID);
+
+    List<CourseAnnouncement> announcements = await canvas.FetchCourseAnnouncementsAsync(courseID);
+
+    foreach(var announcement in announcements)
+    {
+        Console.WriteLine($"[ID: {announcement.Id}]");
+        Console.WriteLine($"By: {announcement.ProfessorName}  on  {announcement.PostedAt: MM-dd-yyyy}");
+        Console.WriteLine(new string('-', 50)); // replace this later with message if ever.
+    }    
+}
 
 
 // Getting Todos
-List<PlannerItem> feed = await canvas.FetchDashboardFeedAsync();
-
-Console.WriteLine($"Found {feed.Count} to-do item(s).\n");
-
-foreach(var item in feed)
+async Task FetchDashboard()
 {
-    string course = item.CourseName;
-    string typeTag = item.Type.ToUpper();
-    string title = item.Details?.Title ?? "<No Title>";
-    string dateString = item.Date.HasValue ? item.Date.Value.ToLocalTime().ToString("MMM dd, yyyy h:mm tt") : "No date";
-    string totalScore = item.Details?.TotalPoints.HasValue == true ? $"{item.Details.TotalPoints} pts total" : "No pts";
+    List<PlannerItem> feed = await canvas.FetchDashboardFeedAsync();
 
-    Console.WriteLine("-------------------------------");
-    Console.WriteLine($"Course:\t{course}");
-    Console.WriteLine($"[{typeTag}]\t ID: {item.PlannableID}");
-    Console.WriteLine($"Title:\t{title}");
-    Console.WriteLine($"Due:\t{dateString}\t -- {totalScore} ");
-    Console.WriteLine("-------------------------------");
+    Console.WriteLine($"Found {feed.Count} to-do item(s).\n");
+
+    foreach(var item in feed)
+    {
+        string course = item.CourseName;
+        string typeTag = item.Type.ToUpper();
+        string title = item.Details?.Title ?? "<No Title>";
+        string dateString = item.Date.HasValue ? item.Date.Value.ToLocalTime().ToString("MMM dd, yyyy h:mm tt") : "No date";
+        string totalScore = item.Details?.TotalPoints.HasValue == true ? $"{item.Details.TotalPoints} pts total" : "No pts";
+
+        Console.WriteLine("-------------------------------");
+        Console.WriteLine($"Course:\t{course}");
+        Console.WriteLine($"[{typeTag}]\t ID: {item.PlannableID}");
+        Console.WriteLine($"Title:\t{title}");
+        Console.WriteLine($"Due:\t{dateString}\t -- {totalScore} ");
+        Console.WriteLine("-------------------------------");
+    }
+
+    Console.Write("Mark an item as completed? (true/false):  ");
+    bool.TryParse(Console.ReadLine(), out bool markItemChoice);
+    if (markItemChoice)
+    {
+        // Test: completing a task
+        Console.Write("Item ID to be Marked as Completed:  ");
+        long itemID = long.Parse(Console.ReadLine() ?? "0000"); // it's a test anyways so no tryparse
+        foreach(var item in feed)
+        {
+            if(item.PlannableID == itemID)
+            {
+                Console.WriteLine("Item Found! Marking as Completed...");
+                bool isSuccess = await canvas.MarkItemCompleteAsync(item);
+                if (isSuccess)
+                {
+                    Console.WriteLine("Successfully marked as completed!");
+                }
+                else
+                {
+                    Console.WriteLine("Failed to update status on Canvas.");
+                }
+                return;
+            }
+        }
+    }
 }
 
-// Test: completing a task
-Console.Write("Item ID to be Marked as Completed:  ");
-long itemID = long.Parse(Console.ReadLine() ?? "0000"); // it's a test anyways so no tryparse
-foreach(var item in feed)
+
+
+
+int GetChoice()
 {
-    if(item.PlannableID == itemID)
-    {
-        Console.WriteLine("Item Found! Marking as Completed...");
-        bool isSuccess = await canvas.MarkItemCompleteAsync(item);
-        if (isSuccess)
-        {
-            Console.WriteLine("Successfully marked as completed!");
-        }
-        else
-        {
-            Console.WriteLine("Failed to update status on Canvas.");
-        }
-        return;
-    }
+    Console.Write("Choice:  ");
+    int choice = int.Parse(Console.ReadLine() ?? "0");
+    return choice; // i know there's bad practices here but this is just for testing purposes/
+}
+
+void ShowMenu()
+{
+    Console.WriteLine("================== MENU ===================");
+    Console.WriteLine("[ 1 ]\tGet Dashboard contents");
+    Console.WriteLine("[ 2 ]\tGet Course Announcements");
+    // Console.WriteLine("[ 3 ]\t ");
+    // Console.WriteLine("[ 4 ]\t");
+    Console.WriteLine("===========================================");
 }

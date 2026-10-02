@@ -104,6 +104,20 @@ public class CanvasService
         return announcements;
     }
 
+    // Fetch courses in that school year
+    public async Task<List<Course>> FetchCurrentSemesterCourses(DateTime semesterDate)
+    {
+        var response = await _http.GetAsync("users/self/favorites/courses");
+        response.EnsureSuccessStatusCode();
+
+        string responsePayload = await response.Content.ReadAsStringAsync();
+
+        List<Course> courses = JsonSerializer.Deserialize<List<Course>>(responsePayload) ?? new List<Course>();
+
+        // trim out return the courses in the current sem
+        return courses.Where(course => course.CourseCreationDate >= semesterDate).ToList();
+    }
+
     public async Task<List<PlannerItem>> FetchDashboardFeedAsync(int daysAhead = 14, bool showCompleted = false)
     {
         // Always start at the first day of the current week

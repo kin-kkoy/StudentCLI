@@ -3,6 +3,14 @@ using System.Text.Json.Serialization;
 
 namespace CanvasRecords;
 
+
+public record Course(
+    [property: JsonPropertyName("id")] long ID,
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("course_code")] string CourseCode,
+    [property: JsonPropertyName("created_at")] DateTime? CourseCreationDate
+);
+
 public record CourseAnnouncement(
     [property: JsonPropertyName("id")] long Id,
     [property: JsonPropertyName("title")] string Title,
@@ -11,7 +19,6 @@ public record CourseAnnouncement(
     [property: JsonPropertyName("attachments")] List<JsonElement>? Attachments,   // Just for checking if there are attachments
     [property: JsonPropertyName("message")] string Message
 );
-
 
 // This is for being able to mark an item in the planner feed as "completed/read"
 public record PlannerOverride(
