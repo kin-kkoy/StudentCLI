@@ -33,11 +33,11 @@ if(canvas is null)
 // Menu - lazy load style
 ShowMenu();
 Console.WriteLine("\nFetching Courses...");
-List<Course> courses = await canvas.FetchCurrentSemesterCourses(new DateTime(2026, 08, 01)); // Sem is hardcoded for now
+List<Course> courses = await canvas.FetchCurrentSemesterCoursesAsync(new DateTime(2026, 08, 01)); // Sem is hardcoded for now
 Console.WriteLine("=== COURSES:");
 foreach (var course in courses)
 {
-    Console.WriteLine($"[ {course.CourseCode} ]\t{course.Name}");
+    Console.WriteLine($"[ {course.ID} ]\t{course.CourseCode} -  {course.Name}");
 }
 Console.WriteLine("------------------------------------");
 int choice = GetChoice();
@@ -51,9 +51,9 @@ switch (choice)
     case 2:
         await FetchAnnouncements();
         break;
-    // case 3:
-
-    //     break;
+    case 3:
+        await FetchSingleAnnouncement();
+        break;
     default:
         Console.WriteLine("Choice not found! Exiting program");
         Environment.Exit(0);
@@ -64,7 +64,7 @@ switch (choice)
 async Task FetchAnnouncements()
 {
     Console.Write("Course Choice:  ");
-    long.TryParse(Console.ReadLine(), out long courseID);
+    string courseID = Console.ReadLine() ?? "00abcdefg";
 
     List<CourseAnnouncement> announcements = await canvas.FetchCourseAnnouncementsAsync(courseID);
 
@@ -74,6 +74,34 @@ async Task FetchAnnouncements()
         Console.WriteLine($"By: {announcement.ProfessorName}  on  {announcement.PostedAt: MM-dd-yyyy}");
         Console.WriteLine(new string('-', 50)); // replace this later with message if ever.
     }    
+}
+
+async Task FetchSingleAnnouncement()
+{
+    Console.Write("Course Choice:  ");
+    string courseID = Console.ReadLine() ?? "00abcdefg";
+    
+    Console.Write("Announcement Choice:  ");
+    long.TryParse(Console.ReadLine(), out long announcementID);
+    
+    AnnouncementDetail? announcement = await canvas.FetchAnnouncementAsync(courseID, announcementID);
+
+
+    if(announcement is not null)
+    {
+        Console.WriteLine("========================================");
+        Console.WriteLine($"TITLE:   {announcement.Title}");
+        Console.WriteLine($"AUTHOR:  {announcement.AuthorName ?? "Unknown"}");
+        Console.WriteLine($"POSTED:  {announcement.PostedAt?.ToLocalTime():MMM dd, yyyy h:mm tt}");
+        Console.WriteLine("----------------------------------------");
+        Console.WriteLine("BODY (Raw HTML):");
+        Console.WriteLine(announcement.Message ?? "[No Content]");
+        Console.WriteLine("========================================");
+    }
+    else
+    {
+        Console.WriteLine("Announcement not found or loaded.");
+    }
 }
 
 
@@ -132,7 +160,7 @@ async Task FetchDashboard()
 
 int GetChoice()
 {
-    Console.Write("Choice:  ");
+    Console.Write("Menu Choice:  ");
     int choice = int.Parse(Console.ReadLine() ?? "0");
     return choice; // i know there's bad practices here but this is just for testing purposes/
 }
@@ -142,7 +170,7 @@ void ShowMenu()
     Console.WriteLine("================== MENU ===================");
     Console.WriteLine("[ 1 ]\tGet Dashboard contents");
     Console.WriteLine("[ 2 ]\tGet Course Announcements");
-    // Console.WriteLine("[ 3 ]\t ");
+    Console.WriteLine("[ 3 ]\tGet Course Announcement (single)");
     // Console.WriteLine("[ 4 ]\t");
     Console.WriteLine("===========================================");
 }

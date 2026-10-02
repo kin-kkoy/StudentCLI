@@ -56,7 +56,7 @@ public class CanvasService
 
     // Talking to Canvas ===========================================================================
 
-    public async Task<List<CourseAnnouncement>> FetchCourseAnnouncementsAsync(long courseId)
+    public async Task<List<CourseAnnouncement>> FetchCourseAnnouncementsAsync(string courseId)
     {
         // 1. Send the GET request to the relative path
         // 2. Throw an exception if status is not 200-299
@@ -104,8 +104,21 @@ public class CanvasService
         return announcements;
     }
 
+    // Fetch a single announcement from a course. Default: Latest announcement (read or not)
+    public async Task<AnnouncementDetail?> FetchAnnouncementAsync(string courseID, long announcementID)
+    {
+        HttpResponseMessage response = await _http.GetAsync($"courses/{courseID}/discussion_topics/{announcementID}");
+        response.EnsureSuccessStatusCode();
+
+        string responsePayload = await response.Content.ReadAsStringAsync();
+
+        AnnouncementDetail? announcement = JsonSerializer.Deserialize<AnnouncementDetail>(responsePayload);
+        
+        return announcement;
+    }
+
     // Fetch courses in that school year
-    public async Task<List<Course>> FetchCurrentSemesterCourses(DateTime semesterDate)
+    public async Task<List<Course>> FetchCurrentSemesterCoursesAsync(DateTime semesterDate)
     {
         var response = await _http.GetAsync("users/self/favorites/courses");
         response.EnsureSuccessStatusCode();

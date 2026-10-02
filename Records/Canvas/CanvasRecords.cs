@@ -20,6 +20,15 @@ public record CourseAnnouncement(
     [property: JsonPropertyName("message")] string Message
 );
 
+public record AnnouncementDetail(
+    [property: JsonPropertyName("id")] long ID,
+    [property: JsonPropertyName("posted_at")] DateTime? PostedAt,
+    [property: JsonPropertyName("title")] string Title,
+    [property: JsonPropertyName("message")] string? Message,
+    [property: JsonPropertyName("user_name")] string? AuthorName,
+    [property: JsonPropertyName("url")] string? Url
+);
+
 // This is for being able to mark an item in the planner feed as "completed/read"
 public record PlannerOverride(
     [property: JsonPropertyName("id")] long ID,
