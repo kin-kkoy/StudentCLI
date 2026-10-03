@@ -17,7 +17,7 @@ A modern terminal interface to manage Canvas LMS academic feeds and Gmail commun
   - [x] Sync "Mark as done" actions directly with Canvas servers.
 - [ ] **Detail View & Content Extraction**
   - [x] Fetch single announcement body via `courses/{course_id}/discussion_topics/{topic_id}`. For viewing or getting an item in the feed via the dashboard feed.
-  - [ ] Fetch single assignment prompt/rubric via `courses/{course_id}/assignments/{assignment_id}`.
+  - [X] Fetch single assignment prompt/rubric via `courses/{course_id}/assignments/{assignment_id}`.
   - [ ] Build `TextCleaner` utility (HTML stripping, entity decoding, line break preservation).
 
 ---

@@ -177,4 +177,52 @@ public class CanvasService
         return postResponse.IsSuccessStatusCode;
     }
 
+    // Fetch a single assignment/activity/quiz
+    public async Task<Assignment?> FetchAssignmentAsync(string courseID, long assignmentID)
+    {
+        HttpResponseMessage response = await _http.GetAsync($"/courses/{courseID}/assignments/{assignmentID}");
+        response.EnsureSuccessStatusCode();
+
+        string responsePayload = await response.Content.ReadAsStringAsync();
+        var assignmentDetail = JsonSerializer.Deserialize<Assignment>(responsePayload);
+
+        // Check if it's quiz and has no details attached, try to get the full details from it's specific endpoint
+        if(assignmentDetail is {IsQuizAssignment: true, Description: null, QuizID: not null })
+        {
+            assignmentDetail = await InjectQuizDescriptionAsync(courseID, assignmentDetail.QuizID.Value, assignmentDetail);
+        }
+        
+        return assignmentDetail;
+    }
+
+
+
+
+    // HELPER METHODS ===========================================================================
+
+
+    // Helper method for fetching quiz details (just the desc)
+    private async Task<Assignment> InjectQuizDescriptionAsync(string courseID, long quizID, Assignment assignmentObjectPayload)
+    {
+        try
+        {
+            HttpResponseMessage response = await _http.GetAsync($"courses/{courseID}/quizzes/{quizID}");
+            if (!response.IsSuccessStatusCode)
+            {
+                // If the quiz is locked, unpublished, or returns 403/404, fallback gracefully
+                return assignmentObjectPayload;
+            }
+
+            string responsePayload = await response.Content.ReadAsStringAsync();
+            var quizDetails = JsonSerializer.Deserialize<QuizDetail>(responsePayload);
+
+            // If the quiz has a description, just return a shallow copy with the desc updated
+            if(!string.IsNullOrWhiteSpace(quizDetails?.Description))
+                return assignmentObjectPayload with {Description = quizDetails.Description};
+
+        }
+        catch { }   // Fail-safe: if the quiz fetch fails, return the original assignment as-is
+        
+        return assignmentObjectPayload;
+    }
 }

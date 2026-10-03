@@ -45,7 +45,6 @@ int choice = GetChoice();
 switch (choice)
 {
     case 1:
-        
         await FetchDashboard();
         break;
     case 2:
@@ -53,6 +52,9 @@ switch (choice)
         break;
     case 3:
         await FetchSingleAnnouncement();
+        break;
+    case 4:
+        await FetchSingleAssignment();
         break;
     default:
         Console.WriteLine("Choice not found! Exiting program");
@@ -86,7 +88,6 @@ async Task FetchSingleAnnouncement()
     
     AnnouncementDetail? announcement = await canvas.FetchAnnouncementAsync(courseID, announcementID);
 
-
     if(announcement is not null)
     {
         Console.WriteLine("========================================");
@@ -104,6 +105,33 @@ async Task FetchSingleAnnouncement()
     }
 }
 
+async Task FetchSingleAssignment()
+{
+    Console.Write("Course Choice:  ");
+    string courseID = Console.ReadLine() ?? "00abcdefg";
+    
+    Console.Write("Assignment Choice:  ");
+    long.TryParse(Console.ReadLine(), out long assignmentID);
+
+    Assignment? assignment = await canvas.FetchAssignmentAsync(courseID, assignmentID);
+
+    if (assignment is not null)
+    {
+        Console.WriteLine("========================================");
+        Console.WriteLine($"[ASSIGNMENT] {assignment.Name}");
+        Console.WriteLine($"Points:   {assignment.TotalScore?.ToString() ?? "No pts"}");
+        Console.WriteLine($"Due:      {assignment.Deadline?.ToLocalTime():MMM dd, yyyy h:mm tt}");
+        Console.WriteLine($"Is Quiz:  {assignment.IsQuizAssignment}");
+        Console.WriteLine("----------------------------------------");
+        Console.WriteLine("INSTRUCTIONS / PROMPT (Raw HTML):");
+        Console.WriteLine(assignment.Description ?? "[No Description Found / Locked]");
+        Console.WriteLine("========================================");
+    }
+    else
+    {
+        Console.WriteLine("Assignment not found or loaded.");
+    }
+}
 
 // Getting Todos
 async Task FetchDashboard()
@@ -155,14 +183,11 @@ async Task FetchDashboard()
     }
 }
 
-
-
-
 int GetChoice()
 {
     Console.Write("Menu Choice:  ");
     int choice = int.Parse(Console.ReadLine() ?? "0");
-    return choice; // i know there's bad practices here but this is just for testing purposes/
+    return choice;
 }
 
 void ShowMenu()
@@ -171,6 +196,6 @@ void ShowMenu()
     Console.WriteLine("[ 1 ]\tGet Dashboard contents");
     Console.WriteLine("[ 2 ]\tGet Course Announcements");
     Console.WriteLine("[ 3 ]\tGet Course Announcement (single)");
-    // Console.WriteLine("[ 4 ]\t");
+    Console.WriteLine("[ 4 ]\tGet Course Assignment (single)");
     Console.WriteLine("===========================================");
 }

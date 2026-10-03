@@ -51,3 +51,23 @@ public record PlannerItem(
     [property: JsonPropertyName("planner_override")] PlannerOverride? Override,
     [property: JsonPropertyName("plannable")] PlannerItemDetails? Details
 );
+
+public record Assignment(
+    [property: JsonPropertyName("id")] long AssignmentID,
+    [property: JsonPropertyName("quiz_id")] long? QuizID,
+    [property: JsonPropertyName("points_possible")] double? TotalScore,
+    [property: JsonPropertyName("created_at")] DateTime? CreatedDate,
+    [property: JsonPropertyName("due_at")] DateTime? Deadline,
+    [property: JsonPropertyName("name")] string Name,
+    [property: JsonPropertyName("description")] string? Description,
+    [property: JsonPropertyName("is_quiz_assignment")] bool IsQuizAssignment,
+    [property: JsonPropertyName("availability_status")] List<JsonElement>? AvailabilityStatus,
+    [property: JsonPropertyName("submission_types")] List<string>? SubmissionTypes,
+    [property: JsonPropertyName("html_url")] string? QuizURL
+);
+
+public record QuizDetail (
+    [property: JsonPropertyName("id")] long ID,
+    [property: JsonPropertyName("title")] string Title,
+    [property: JsonPropertyName("description")] string? Description
+);
