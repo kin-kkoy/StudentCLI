@@ -1,8 +1,9 @@
 ﻿using Google.Apis.Auth.OAuth2;
-
-using CanvasRecords;
-using TerminalHub;
 using Google.Apis.Util;
+
+using CanvasMail.Records.CanvasRecords;
+using CanvasMail.TerminalHub;
+using CanvasMail.Utility;
 
 
 DotNetEnv.Env.Load();
@@ -95,8 +96,8 @@ async Task FetchSingleAnnouncement()
         Console.WriteLine($"AUTHOR:  {announcement.AuthorName ?? "Unknown"}");
         Console.WriteLine($"POSTED:  {announcement.PostedAt?.ToLocalTime():MMM dd, yyyy h:mm tt}");
         Console.WriteLine("----------------------------------------");
-        Console.WriteLine("BODY (Raw HTML):");
-        Console.WriteLine(announcement.Message ?? "[No Content]");
+        Console.WriteLine("CONTENTS:");
+        Console.WriteLine(TextCleaner.CleanHtml(announcement.Message) ?? "[No Content]");
         Console.WriteLine("========================================");
     }
     else
@@ -124,7 +125,7 @@ async Task FetchSingleAssignment()
         Console.WriteLine($"Is Quiz:  {assignment.IsQuizAssignment}");
         Console.WriteLine("----------------------------------------");
         Console.WriteLine("INSTRUCTIONS / PROMPT (Raw HTML):");
-        Console.WriteLine(assignment.Description ?? "[No Description Found / Locked]");
+        Console.WriteLine(TextCleaner.CleanHtml(assignment.Description) ?? "[No Description Found / Locked]");
         Console.WriteLine("========================================");
     }
     else

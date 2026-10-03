@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace CanvasRecords;
+namespace CanvasMail.Records.CanvasRecords;
 
 
 public record Course(
