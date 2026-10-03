@@ -15,10 +15,10 @@ A modern terminal interface to manage Canvas LMS academic feeds and Gmail commun
 - [x] **Task Completion & Write-Back**
   - [x] Implement conditional `POST` (create) vs. `PUT` (update) for planner overrides.
   - [x] Sync "Mark as done" actions directly with Canvas servers.
-- [ ] **Detail View & Content Extraction**
+- [X] **Detail View & Content Extraction**
   - [x] Fetch single announcement body via `courses/{course_id}/discussion_topics/{topic_id}`. For viewing or getting an item in the feed via the dashboard feed.
   - [X] Fetch single assignment prompt/rubric via `courses/{course_id}/assignments/{assignment_id}`.
-  - [ ] Build `TextCleaner` utility (HTML stripping, entity decoding, line break preservation).
+  - [X] Build `TextCleaner` utility (HTML stripping, entity decoding, line break preservation).
 
 ---
 
