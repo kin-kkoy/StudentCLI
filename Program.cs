@@ -1,8 +1,8 @@
 ﻿using Google.Apis.Auth.OAuth2;
 using Google.Apis.Util;
 
-using CanvasMail.Records.CanvasRecords;
-using CanvasMail.TerminalHub;
+using CanvasMail.Models;
+using CanvasMail.Services.Canvas;
 using CanvasMail.Utility;
 
 
@@ -198,5 +198,6 @@ void ShowMenu()
     Console.WriteLine("[ 2 ]\tGet Course Announcements");
     Console.WriteLine("[ 3 ]\tGet Course Announcement (single)");
     Console.WriteLine("[ 4 ]\tGet Course Assignment (single)");
+    Console.WriteLine("[ 0 ]\tExit Program");
     Console.WriteLine("===========================================");
 }

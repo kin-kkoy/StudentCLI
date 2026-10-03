@@ -46,6 +46,7 @@ A modern terminal interface to manage Canvas LMS academic feeds and Gmail commun
 ---
 
 ## Phase 4: CLI Interface & Terminal Makeover (Frontend)
+> Folder already created `UI/`
 - [ ] **Command & Menu System**
   - [ ] Integrate terminal UI framework (e.g., `Spectre.Console`).
   - [ ] Build interactive navigation loops (arrow-key selection, hotkeys, breadcrumbs).

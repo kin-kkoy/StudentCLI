@@ -3,9 +3,9 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-using CanvasMail.Records.CanvasRecords;
+using CanvasMail.Models;
 
-namespace CanvasMail.TerminalHub;
+namespace CanvasMail.Services.Canvas;
 
 
 /*  ARCHITECTURE:
