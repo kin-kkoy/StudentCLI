@@ -193,14 +193,34 @@ async Task FetchDashboard()
 }
 
 
-// Gmail Test
+
+
+// Gmail Testings ===-==-=-=-==-===
 async Task TestGmail()
 {
+    // [DONE]   Gmail connectivity and authentication
+    // []       Gmail unread email/s fetching
+
     var gmail = await GmailClientService.ConnectAsync(googleClientSecrets);
+
+    /* Test 1:
     var gmailProfile = await gmail.FetchProfileAsync();
     Console.WriteLine($"Email: {gmailProfile.EmailAddress}");
     Console.WriteLine($"Total Mssgs: {gmailProfile.MessagesTotal}");
+    */
+
+    /* Test 2:*/
+    List<EmailSummary> unreadEmails = await gmail.FetchUnreadEmailsAsync();
+    foreach (var email in unreadEmails)
+    {
+        Console.WriteLine($"ID:\t{email.ID}");
+        Console.WriteLine($"Date:\t{email.Date}");
+        Console.WriteLine($"Subject:\t{email.Subject}");
+        Console.WriteLine($"From:\t{email.From}");
+        Console.WriteLine($"Snippet:\t{email.Snippet}");
+    }
 }
+
 
 
 
@@ -217,8 +237,7 @@ void ShowMenu()
     Console.WriteLine("[ 1 ]\tGet Dashboard contents");
     Console.WriteLine("[ 2 ]\tGet Course Announcements");
     Console.WriteLine("[ 3 ]\tGet Course Announcement (single)");
-    Console.WriteLine("[ 4 ]\tGet Course Assignment (single)");
-    Console.WriteLine("[ 5 ]\tTest Gmail Connection");
+    Console.WriteLine("[ 4 ]\tGet Course Assignment (single)");    Console.WriteLine("[ 5 ]\tTest Gmail Unread Eamil fetching");
     Console.WriteLine("[ 0 ]\tExit Program");
     Console.WriteLine("===========================================");
 }

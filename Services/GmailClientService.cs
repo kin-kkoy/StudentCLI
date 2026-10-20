@@ -1,3 +1,4 @@
+using CanvasMail.Models;
 using Google.Apis.Auth.OAuth2;
 using Google.Apis.Gmail.v1;
 using Google.Apis.Gmail.v1.Data;
@@ -83,6 +84,8 @@ public class GmailClientService
     }
 
 
+    // METHODS ===========================================================================
+    // Authentication ---
     public static async Task<GmailClientService> ConnectAsync(ClientSecrets secrets)
     {
         UserCredential userCredential = await GoogleWebAuthorizationBroker.AuthorizeAsync(
@@ -106,4 +109,63 @@ public class GmailClientService
 
     public async Task<Profile> FetchProfileAsync() => await _gmail.Users.GetProfile("me").ExecuteAsync();
 
+
+    // Content ---
+    public async Task<List<EmailSummary>> FetchUnreadEmailsAsync(int maxResults = 8)
+    {
+        // List to be returned, whether null (empty) or not
+        List<EmailSummary> unreadEmails = new List<EmailSummary>();
+
+        // Format request
+        var listRequest = _gmail.Users.Messages.List("me");
+        listRequest.Q = "is:unread";
+        listRequest.MaxResults = maxResults;
+        // Send the request and get Response
+        var listResponse = await listRequest.ExecuteAsync();
+        if(listResponse.Messages is null)
+            return unreadEmails;
+
+
+        foreach (var item in listResponse.Messages)
+        {
+            // build req
+            var messageReq = _gmail.Users.Messages.Get("me", item.Id);
+            messageReq.Format  = UsersResource.MessagesResource.GetRequest.FormatEnum.Metadata;
+        
+            // send req, get response
+            var messageRes = await messageReq.ExecuteAsync();
+
+            // Formatting frking date
+            var messageDate = messageRes.InternalDate.HasValue
+                ?    DateTimeOffset.FromUnixTimeMilliseconds(messageRes.InternalDate.Value).LocalDateTime
+                :   (DateTime?) null;
+
+
+            // Add to list
+            unreadEmails.Add(new EmailSummary(
+                    ID: messageRes.Id,
+                    From: GetHeader(messageRes, "From"),
+                    Subject: GetHeader(messageRes, "Subject"),
+                    Date: messageDate,
+                    Snippet: messageRes.Snippet
+                )
+            );
+        }
+
+        return unreadEmails;
+    }
+
+
+    // HELPER METHODS ===========================================================================
+    
+    private static string GetHeader(Message message, string headerName)
+    {
+        foreach (var value in message.Payload.Headers)
+        {
+            if(string.Equals(value.Name, headerName, StringComparison.OrdinalIgnoreCase))
+                return value.Value;
+        }
+
+        return "";
+    }
 }
