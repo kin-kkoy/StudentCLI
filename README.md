@@ -23,11 +23,11 @@ A modern terminal interface to manage Canvas LMS academic feeds and Gmail commun
 ---
 
 ## Phase 2: Gmail Core Engine
-- [ ] **Google Cloud Project & Authentication**
-  - [ ] Configure Google Cloud Console project and enable Gmail API.
-  - [ ] Set up OAuth 2.0 Client credentials (`client_secret.json`).
-  - [ ] Implement OAuth 2.0 user consent flow (local browser authentication callback).
-  - [ ] Implement token caching and silent refresh (`token.json`).
+- [X] **Google Cloud Project & Authentication**
+  - [X] Configure Google Cloud Console project and enable Gmail API.
+  - [X] Set up OAuth 2.0 Client credentials (`client_secret.json`). Used `.env` instead hehe
+  - [X] Implement OAuth 2.0 user consent flow (local browser authentication callback).
+  - [X] Implement token caching and silent refresh (`token.json`).
 - [ ] **Gmail Service Implementation**
   - [ ] Create email DTO records (`EmailSummary`, `EmailDetail`, `AttachmentMetadata`).
   - [ ] Implement `FetchUnreadEmailsAsync` (filtered inbox queries e.g., `is:unread category:primary`).

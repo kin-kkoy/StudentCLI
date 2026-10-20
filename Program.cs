@@ -1,9 +1,13 @@
 ﻿using Google.Apis.Auth.OAuth2;
 using Google.Apis.Util;
 
+// Canvas
 using CanvasMail.Models;
 using CanvasMail.Services.Canvas;
 using CanvasMail.Utility;
+// Gmail
+using CanvasMail.Services.GmailClient;
+using Google.Apis.Gmail.v1.Data;
 
 
 DotNetEnv.Env.Load();
@@ -35,6 +39,7 @@ if(canvas is null)
 ShowMenu();
 Console.WriteLine("\nFetching Courses...");
 List<Course> courses = await canvas.FetchCurrentSemesterCoursesAsync(new DateTime(2026, 08, 01)); // Sem is hardcoded for now
+
 Console.WriteLine("=== COURSES:");
 foreach (var course in courses)
 {
@@ -56,6 +61,9 @@ switch (choice)
         break;
     case 4:
         await FetchSingleAssignment();
+        break;
+    case 5:
+        await TestGmail();
         break;
     default:
         Console.WriteLine("Choice not found! Exiting program");
@@ -184,6 +192,18 @@ async Task FetchDashboard()
     }
 }
 
+
+// Gmail Test
+async Task TestGmail()
+{
+    var gmail = await GmailClientService.ConnectAsync(googleClientSecrets);
+    var gmailProfile = await gmail.FetchProfileAsync();
+    Console.WriteLine($"Email: {gmailProfile.EmailAddress}");
+    Console.WriteLine($"Total Mssgs: {gmailProfile.MessagesTotal}");
+}
+
+
+
 int GetChoice()
 {
     Console.Write("Menu Choice:  ");
@@ -198,6 +218,7 @@ void ShowMenu()
     Console.WriteLine("[ 2 ]\tGet Course Announcements");
     Console.WriteLine("[ 3 ]\tGet Course Announcement (single)");
     Console.WriteLine("[ 4 ]\tGet Course Assignment (single)");
+    Console.WriteLine("[ 5 ]\tTest Gmail Connection");
     Console.WriteLine("[ 0 ]\tExit Program");
     Console.WriteLine("===========================================");
 }
