@@ -37,9 +37,12 @@ A modern terminal interface to manage Canvas LMS academic feeds and Gmail commun
 ---
 
 ## Phase 3: Application Orchestration & Business Logic
+> Phases 3 and 4 are built together: they're really one thing split in two. The controller (Phase 3) is the "backend of the frontend", so its methods get shaped by what each screen (Phase 4) needs. Add a controller method whenever a screen needs one.
 - [ ] **Service Orchestration**
   - [ ] Create an application controller / state manager to coordinate Canvas and Gmail services.
-  - [ ] Implement unified error handling and network fault tolerance (graceful timeouts, rate-limit backoff).
+  - [ ] Opening an email auto-marks it as read (fetch content + `MarkAsReadAsync`).
+  - [ ] Implement unified error handling and network fault tolerance (friendly error messages instead of crashes, request timeouts).
+    - Rate-limit backoff dropped: a personal tool doesn't come close to Canvas/Gmail limits, and Google's library already retries 503s.
 - [ ] **Data Aggregation View**
   - [ ] Build an aggregated "Morning Briefing" routine (today's schedule + urgent emails).
 
@@ -47,6 +50,7 @@ A modern terminal interface to manage Canvas LMS academic feeds and Gmail commun
 
 ## Phase 4: CLI Interface & Terminal Makeover (Frontend)
 > Folder already created `UI/`
+> Built together with Phase 3 (see the note there).
 - [ ] **Command & Menu System**
   - [ ] Integrate terminal UI framework (e.g., `Spectre.Console`).
   - [ ] Build interactive navigation loops (arrow-key selection, hotkeys, breadcrumbs).
