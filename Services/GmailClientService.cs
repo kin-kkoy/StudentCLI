@@ -2,6 +2,7 @@ using System.Buffers.Text;
 using System.Text;
 using CanvasMail.Models;
 using CanvasMail.Utility;
+using Google;
 using Google.Apis.Auth.OAuth2;
 using Google.Apis.Gmail.v1;
 using Google.Apis.Gmail.v1.Data;
@@ -199,9 +200,45 @@ public class GmailClientService
         );
     }
 
+    // Interaction with Email (Mark as Read, Star, etc.) ---
+    public  Task<bool> MarkAsRead(string messageID) =>
+        ModifyLabelsAsync(messageID, [], ["UNREAD"]);
+
+    public  Task<bool> StarEmail(string messageID) => 
+        ModifyLabelsAsync(messageID, ["STARRED"], []);
+
+    public async Task<bool> TrashEmailAsync(string messageID)
+    {
+        try
+        {
+            await _gmail.Users.Messages.Trash("me", messageID).ExecuteAsync();
+            return true;
+        }
+        catch (GoogleApiException)
+        {
+            return false;
+        }
+    }
 
     // HELPER METHODS ===========================================================================
     
+    private async Task<bool> ModifyLabelsAsync(string messageID, string[] addLabels, string[] removeLabels)
+    {
+        try
+        {
+            ModifyMessageRequest body = new ModifyMessageRequest();
+            body.AddLabelIds = addLabels;
+            body.RemoveLabelIds = removeLabels;
+
+            await _gmail.Users.Messages.Modify(body, "me", messageID).ExecuteAsync();
+            return true;
+        }
+        catch (GoogleApiException)
+        {
+            return false;
+        }
+    }
+
     private static string GetHeader(Message message, string headerName)
     {
         foreach (var value in message.Payload.Headers)

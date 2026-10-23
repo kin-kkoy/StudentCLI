@@ -28,11 +28,11 @@ A modern terminal interface to manage Canvas LMS academic feeds and Gmail commun
   - [X] Set up OAuth 2.0 Client credentials (`client_secret.json`). Used `.env` instead hehe
   - [X] Implement OAuth 2.0 user consent flow (local browser authentication callback).
   - [X] Implement token caching and silent refresh (`token.json`).
-- [ ] **Gmail Service Implementation**
+- [X] **Gmail Service Implementation**
   - [X] Create email DTO records (`EmailSummary`, `EmailDetail`, `AttachmentMetadata`).
   - [X] Implement `FetchUnreadEmailsAsync` (filtered inbox queries e.g., `is:unread category:primary`).
   - [X] Implement `FetchEmailContentAsync` (fetch body, parse MIME multipart payloads, decode base64url).
-  - [ ] Implement interaction actions (`MarkAsReadAsync`, `StarEmailAsync`, `TrashEmailAsync`).
+  - [X] Implement interaction actions (`MarkAsReadAsync`, `StarEmailAsync`, `TrashEmailAsync`).
 
 ---
 

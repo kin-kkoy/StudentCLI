@@ -65,9 +65,9 @@ switch (choice)
     case 5:
         await TestGmail();
         break;
-    // case 6:
-    //     await TestGmail();
-    //     break;
+    case 6:
+        await TestGMailReadEmail();
+        break;
     default:
         Console.WriteLine("Choice not found! Exiting program");
         Environment.Exit(0);
@@ -201,8 +201,6 @@ async Task FetchDashboard()
 // Gmail Testings ===-==-=-=-==-===
 async Task TestGmail()
 {
-    // [DONE]   Gmail connectivity and authentication
-    // []       Gmail unread email/s fetching
 
     var gmail = await GmailClientService.ConnectAsync(googleClientSecrets);
 
@@ -240,6 +238,27 @@ async Task TestGmail()
     Console.WriteLine(await gmail.FetchEmailContentAsync(emailID));
 }
 
+async Task TestGMailReadEmail()
+{
+    var gmail = await GmailClientService.ConnectAsync(googleClientSecrets);
+
+    List<EmailSummary> unreadEmails = await gmail.FetchUnreadEmailsAsync();
+    foreach (var email in unreadEmails)
+    {
+        Console.WriteLine("------------------------------------------------------");
+        Console.WriteLine($"ID:\t{email.ID}");
+        Console.WriteLine($"Subject:\t{email.Subject}");
+        Console.WriteLine("------------------------------------------------------");
+    }
+
+    Console.WriteLine("Input the ID of the email you'd like to read.");
+    string emailID = Console.ReadLine()?.Trim() ?? "";
+    Console.WriteLine("\n\n====== Email Details ======\n");
+    var response = await gmail.FetchEmailContentAsync(emailID);
+    await gmail.MarkAsRead(emailID);
+    Console.WriteLine(response);
+}
+
 
 
 
@@ -258,7 +277,7 @@ void ShowMenu()
     Console.WriteLine("[ 3 ]\tGet Course Announcement (single)");
     Console.WriteLine("[ 4 ]\tGet Course Assignment (single)");
     Console.WriteLine("[ 5 ]\tTest Gmail Unread Email fetching");
-    Console.WriteLine("[ 6 ]\tTest Gmail Fulle Email fetching");
+    Console.WriteLine("[ 6 ]\tTest Gmail Mark as Read Email");
     Console.WriteLine("[ 0 ]\tExit Program");
     Console.WriteLine("===========================================");
 }
