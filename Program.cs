@@ -65,6 +65,9 @@ switch (choice)
     case 5:
         await TestGmail();
         break;
+    // case 6:
+    //     await TestGmail();
+    //     break;
     default:
         Console.WriteLine("Choice not found! Exiting program");
         Environment.Exit(0);
@@ -203,13 +206,13 @@ async Task TestGmail()
 
     var gmail = await GmailClientService.ConnectAsync(googleClientSecrets);
 
-    /* Test 1:
+    /* Test 1: ------------------
     var gmailProfile = await gmail.FetchProfileAsync();
     Console.WriteLine($"Email: {gmailProfile.EmailAddress}");
     Console.WriteLine($"Total Mssgs: {gmailProfile.MessagesTotal}");
     */
 
-    /* Test 2:*/
+    /* Test 2: ------------------
     List<EmailSummary> unreadEmails = await gmail.FetchUnreadEmailsAsync();
     foreach (var email in unreadEmails)
     {
@@ -217,8 +220,24 @@ async Task TestGmail()
         Console.WriteLine($"Date:\t{email.Date}");
         Console.WriteLine($"Subject:\t{email.Subject}");
         Console.WriteLine($"From:\t{email.From}");
-        Console.WriteLine($"Snippet:\t{email.Snippet}");
+        Console.WriteLine($"Snippet:\t{TextCleaner.CleanHtml(email.Snippet)}");
     }
+    */
+
+    /* Test 3: ------------------ */
+    // List out unread emails' IDs only
+    List<EmailSummary> unreadEmails = await gmail.FetchUnreadEmailsAsync();
+    foreach (var email in unreadEmails)
+    {
+        Console.WriteLine("------------------------------------------------------");
+        Console.WriteLine($"ID:\t{email.ID}");
+        Console.WriteLine($"Subject:\t{email.Subject}");
+        Console.WriteLine("------------------------------------------------------");
+    }
+    Console.WriteLine("Input the ID of the email you'd like to read.");
+    string emailID = Console.ReadLine()?.Trim() ?? "";
+    Console.WriteLine("\n\n====== Email Details ======");
+    Console.WriteLine(await gmail.FetchEmailContentAsync(emailID));
 }
 
 
@@ -237,7 +256,9 @@ void ShowMenu()
     Console.WriteLine("[ 1 ]\tGet Dashboard contents");
     Console.WriteLine("[ 2 ]\tGet Course Announcements");
     Console.WriteLine("[ 3 ]\tGet Course Announcement (single)");
-    Console.WriteLine("[ 4 ]\tGet Course Assignment (single)");    Console.WriteLine("[ 5 ]\tTest Gmail Unread Eamil fetching");
+    Console.WriteLine("[ 4 ]\tGet Course Assignment (single)");
+    Console.WriteLine("[ 5 ]\tTest Gmail Unread Email fetching");
+    Console.WriteLine("[ 6 ]\tTest Gmail Fulle Email fetching");
     Console.WriteLine("[ 0 ]\tExit Program");
     Console.WriteLine("===========================================");
 }

@@ -1,4 +1,7 @@
+using System.Buffers.Text;
+using System.Text;
 using CanvasMail.Models;
+using CanvasMail.Utility;
 using Google.Apis.Auth.OAuth2;
 using Google.Apis.Gmail.v1;
 using Google.Apis.Gmail.v1.Data;
@@ -111,7 +114,7 @@ public class GmailClientService
 
 
     // Content ---
-    public async Task<List<EmailSummary>> FetchUnreadEmailsAsync(int maxResults = 8)
+    public async Task<List<EmailSummary>> FetchUnreadEmailsAsync(int maxResults = 5)
     {
         // List to be returned, whether null (empty) or not
         List<EmailSummary> unreadEmails = new List<EmailSummary>();
@@ -135,24 +138,65 @@ public class GmailClientService
             // send req, get response
             var messageRes = await messageReq.ExecuteAsync();
 
-            // Formatting frking date
-            var messageDate = messageRes.InternalDate.HasValue
-                ?    DateTimeOffset.FromUnixTimeMilliseconds(messageRes.InternalDate.Value).LocalDateTime
-                :   (DateTime?) null;
-
 
             // Add to list
             unreadEmails.Add(new EmailSummary(
                     ID: messageRes.Id,
                     From: GetHeader(messageRes, "From"),
                     Subject: GetHeader(messageRes, "Subject"),
-                    Date: messageDate,
+                    Date: FormatDate(messageRes.InternalDate),
                     Snippet: messageRes.Snippet
                 )
             );
         }
 
         return unreadEmails;
+    }
+
+    public async Task<EmailDetail> FetchEmailContentAsync(string messageID)
+    {
+        // req
+        var messageReq = _gmail.Users.Messages.Get("me", messageID);
+        messageReq.Format = UsersResource.MessagesResource.GetRequest.FormatEnum.Full;
+
+        // res
+        var messageRes = await messageReq.ExecuteAsync();
+
+
+        // Flow:
+        //      1. get plain data first and check if it isn't null. 
+        //      2. If it is, check for html data then and if isn't null.
+        //      3. If it is then there's no data so return it as "no data".
+
+        string? plainData = FindBodyData(messageRes.Payload, "text/plain");
+        string messageBody;
+
+        if(plainData is not null)   // decode: if email has plain-text version only
+        {
+            messageBody = DecodeBase64Url(plainData);
+        }
+        else       // decode: if email has html version only
+        {
+            string? htmlData = FindBodyData(messageRes.Payload, "text/html");
+            if(htmlData is not null)
+            {
+                messageBody = TextCleaner.CleanHtml(DecodeBase64Url(htmlData));
+            }
+            else       // No data
+            {
+                messageBody = "(no readable content)";
+            }
+        }
+        
+
+        return new EmailDetail(
+            ID: messageRes.Id,
+            From: GetHeader(messageRes, "From"),
+            To: GetHeader(messageRes, "To"),
+            Subject: GetHeader(messageRes, "Subject"),
+            Date: FormatDate(messageRes.InternalDate),
+            Body: messageBody
+        );
     }
 
 
@@ -168,4 +212,35 @@ public class GmailClientService
 
         return "";
     }
+
+    private static string? FindBodyData(MessagePart messagePart, string mimeType)
+    {
+        if(messagePart.Body?.Data is not null && string.Equals(messagePart.MimeType, mimeType, StringComparison.OrdinalIgnoreCase))
+        {
+            return messagePart.Body?.Data;
+        }
+        else if(messagePart.Parts is not null)
+        {
+            foreach (var childPart in messagePart.Parts)
+            {
+                var bodyFound = FindBodyData(childPart, mimeType);
+                if(bodyFound is not null)   return bodyFound;
+            }
+        }
+
+        // if none at all then
+        return null;
+    }
+
+    private static string DecodeBase64Url(string data)
+    {
+        var byteArray = Base64Url.DecodeFromChars(data.AsSpan());
+        return Encoding.UTF8.GetString(byteArray);
+    }
+
+    private static DateTime? FormatDate(long? inputDate) => 
+        inputDate.HasValue
+            ? DateTimeOffset.FromUnixTimeMilliseconds(inputDate.Value).LocalDateTime
+            : (DateTime?) null;
+
 }

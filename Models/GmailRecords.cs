@@ -9,3 +9,12 @@ public record EmailSummary(
     DateTime? Date,
     string Snippet
 );
+
+public record EmailDetail(
+    string ID,
+    string From,
+    string To,
+    string Subject,
+    DateTime? Date,
+    string Body
+);
