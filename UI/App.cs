@@ -44,6 +44,8 @@ public sealed class App
     private (int Width, int Height) _lastSize;
 
     // What the bottom bar is currently showing (only one at a time, in this priority order)
+    private string? _inputLabel;            // text prompt (e.g. "Semester start date:") + what's typed so far
+    private string _inputText = "";
     private string? _confirmPrompt;
     private string? _loadingMessage;
     private int _spinnerFrame;
@@ -53,6 +55,11 @@ public sealed class App
     // Work running WITHOUT blocking the keyboard (e.g. refreshing the briefing while you browse the saved one)
     private sealed record BackgroundJob(string Message, Task Work, Action OnFinished);
     private readonly List<BackgroundJob> _backgroundJobs = [];
+
+    // Google sign-in again: requested anywhere, carried out by the main loop (it has to leave full screen for it)
+    private HomeScreen? _home;
+    private string? _signInReason;          // non-null = a sign-in is waiting to happen
+    private bool _autoSignInTried;          // automatic retry only once per run, so a broken setup can't loop
 
     public HubController Hub { get; }
 
@@ -76,13 +83,21 @@ public sealed class App
         EnterFullScreen();
         try
         {
-            var home = new HomeScreen(Hub);
-            _screens.Push(home);
-            home.Start(this);       // shows the saved briefing instantly + refreshes in the background
+            Hub.SemesterStart = AppSettings.Load().SemesterStart;
+
+            _home = new HomeScreen(Hub);
+            _screens.Push(_home);
+            _home.Start(this);      // shows the saved briefing instantly + refreshes in the background
 
             while (_running)
             {
                 Render();
+
+                if (_signInReason is not null)
+                {
+                    await SignInToGoogleAgainAsync();
+                    continue;
+                }
 
                 ConsoleKeyInfo? key = await ReadKeyAsync();
                 if (key is null) continue;          // resize -> loop around and redraw at the new size
@@ -178,7 +193,8 @@ public sealed class App
         }
         catch (Exception ex)
         {
-            SetStatus(FriendlyError(ex), StatusKind.Error);
+            if (IsGoogleLoginExpired(ex)) RequestGoogleSignIn();
+            else SetStatus(FriendlyError(ex), StatusKind.Error);
             return (false, default!);
         }
         finally
@@ -219,6 +235,87 @@ public sealed class App
         }
     }
 
+    // Asks for a line of text in the bottom bar. Returns null if cancelled (Esc).
+    public async Task<string?> PromptAsync(string label, string initialText = "")
+    {
+        _inputLabel = label;
+        _inputText = initialText;
+        try
+        {
+            while (true)
+            {
+                Render();
+                ConsoleKeyInfo? key = await ReadKeyAsync();
+                if (key is null) continue;
+
+                ConsoleKeyInfo k = key.Value;
+                if (k.Key == ConsoleKey.Enter) return _inputText.Trim();
+                if (k.Key == ConsoleKey.Escape || Keys.CtrlC(k)) return null;
+
+                if (k.Key == ConsoleKey.Backspace)
+                {
+                    if (_inputText.Length > 0) _inputText = _inputText[..^1];
+                }
+                else if (!char.IsControl(k.KeyChar))
+                {
+                    _inputText += k.KeyChar;
+                }
+            }
+        }
+        finally
+        {
+            _inputLabel = null;
+        }
+    }
+
+
+    // GOOGLE SIGN-IN AGAIN ==================================================================
+
+    // Google rejected the saved login: "invalid_grant" = expired or revoked (password change, admin policy,
+    //  or the 7-day limit that only applies to External apps in Testing mode)
+    public static bool IsGoogleLoginExpired(Exception ex) =>
+        ex is Google.Apis.Auth.OAuth2.Responses.TokenResponseException { Error.Error: "invalid_grant" };
+
+    // userAsked = from Settings (always allowed). Automatic = only once per run.
+    public void RequestGoogleSignIn(bool userAsked = false)
+    {
+        if (!userAsked && _autoSignInTried)
+        {
+            SetStatus("Google still rejects the login. Try Settings › Sign in to Google again.", StatusKind.Error);
+            return;
+        }
+        _signInReason = userAsked
+            ? "Signing in to Google again."
+            : "Your Google login expired or was signed out.";
+    }
+
+    // Leaves full screen so the browser login has the terminal, deletes the old login, signs in, comes back
+    private async Task SignInToGoogleAgainAsync()
+    {
+        string reason = _signInReason!;
+        _signInReason = null;
+        _autoSignInTried = true;
+
+        LeaveFullScreen();
+        Console.WriteLine(reason);
+        Console.WriteLine("Opening your browser to sign in... (Ctrl+C to cancel)");
+        try
+        {
+            await Hub.ReconnectGmailAsync();
+            SetStatus("Signed in to Google again", StatusKind.Success);
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"Google sign-in failed: {FriendlyError(ex)}", StatusKind.Error);
+        }
+        finally
+        {
+            EnterFullScreen();
+        }
+
+        _home?.Refresh(this, announce: false);
+    }
+
     // Shows "<prompt> (y/n)" in the bottom bar and waits for an answer
     public async Task<bool> ConfirmAsync(string prompt)
     {
@@ -248,7 +345,7 @@ public sealed class App
         HttpRequestException => "Couldn't reach the server. Check your connection.",
         // Google logins in "Testing" mode expire after 7 days -> the saved token stops working
         Google.Apis.Auth.OAuth2.Responses.TokenResponseException { Error.Error: "invalid_grant" } =>
-            $"Google login expired. Delete {GoogleTokenFolder} and restart to log in again.",
+            "Google login expired.",
         Google.GoogleApiException google => $"Gmail error: {google.Error?.Message ?? google.Message}",
         TaskCanceledException => "The request timed out.",
         _ => ex.Message
@@ -336,7 +433,12 @@ public sealed class App
     private IRenderable BottomBar(int width, IScreen screen)
     {
         IRenderable line1;
-        if (_confirmPrompt is not null)
+        if (_inputLabel is not null)
+            line1 = new Paragraph()
+                .Append($" {_inputLabel} ", new Style(Theme.Warning, decoration: Decoration.Bold))
+                .Append(TextUtil.Truncate(_inputText, width - TextUtil.Width(_inputLabel) - 6), new Style(Color.White))
+                .Append("▏", new Style(Color.White));
+        else if (_confirmPrompt is not null)
             line1 = new Text(TextUtil.Truncate($" {_confirmPrompt}  [y] yes  [n] no", width - 1), new Style(Theme.Warning, decoration: Decoration.Bold));
         else if (_loadingMessage is not null)
             line1 = new Text($" {SpinnerFrames[_spinnerFrame % SpinnerFrames.Length]} {TextUtil.Truncate(_loadingMessage, width - 5)}", new Style(Theme.MailAccent));
@@ -352,8 +454,6 @@ public sealed class App
 
         return new Rows(line1, line2);
     }
-
-    private static readonly string GoogleTokenFolder = "~/.config/TerminalHub/google-token";
 
     private static string StatusIcon(StatusKind kind) => kind switch
     {

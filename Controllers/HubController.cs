@@ -16,17 +16,22 @@ namespace CanvasMail.Controllers;
 public class HubController
 {
     private readonly CanvasService _canvas;
-    private readonly GmailClientService _gmail;
+    private GmailClientService _gmail;              // not readonly: replaced when signing in to Google again
+    private readonly ClientSecrets _googleSecrets;  // kept so we CAN sign in again without restarting
 
     // For dashboard items in Canvas
     private List<PlannerItem> _dashboardFeed = [];
 
+    // Courses created on/after this date count as "this semester" (changeable in the app's Settings)
+    public DateTime SemesterStart { get; set; } = new DateTime(2026, 08, 01);
+
 
     // Constructor part 2
-    private HubController(CanvasService canvas, GmailClientService gmail)
+    private HubController(CanvasService canvas, GmailClientService gmail, ClientSecrets googleSecrets)
     {
         _canvas = canvas;
         _gmail = gmail;
+        _googleSecrets = googleSecrets;
     }
 
     // Constructor part 1 (used to create connection)
@@ -35,7 +40,14 @@ public class HubController
         var canvasConnection = new CanvasService(canvasDomain, canvasToken);
         var gmailConnection = await GmailClientService.ConnectAsync(googleSecrets);
 
-        return new HubController(canvasConnection, gmailConnection);
+        return new HubController(canvasConnection, gmailConnection, googleSecrets);
+    }
+
+    // Saved Google login stopped working -> delete it, sign in again (opens the browser), swap in the new connection
+    public async Task ReconnectGmailAsync()
+    {
+        await GmailClientService.ForgetSavedLoginAsync();
+        _gmail = await GmailClientService.ConnectAsync(_googleSecrets);
     }
 
 
@@ -47,7 +59,7 @@ public class HubController
     }
 
     public Task<List<Course>> GetCurrentCoursesAsync() =>
-        _canvas.FetchCurrentSemesterCoursesAsync(new DateTime(2026, 08, 01)); // Date is hardcoded, change source code if want to change.
+        _canvas.FetchCurrentSemesterCoursesAsync(SemesterStart);
 
     public Task<List<CourseAnnouncement>> GetCourseAnnouncementsAsync(string courseID) =>
         _canvas.FetchCourseAnnouncementsAsync(courseID);

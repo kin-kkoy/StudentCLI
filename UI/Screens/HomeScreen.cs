@@ -38,8 +38,8 @@ public sealed class HomeScreen : IScreen
     public string Title => "Briefing";
 
     public string KeyHints => _mailFocused
-        ? "↑↓ move · Tab to-dos · ⏎ open · a announcements · r refresh"
-        : "↑↓ move · Tab mail · ⏎ open · d mark done · a announcements · r refresh";
+        ? "↑↓ move · Tab to-dos · ⏎ open · a announcements · r refresh · s settings"
+        : "↑↓ move · Tab mail · ⏎ open · d done · a announcements · r refresh · s settings";
 
 
     public HomeScreen(HubController hub)
@@ -69,12 +69,12 @@ public sealed class HomeScreen : IScreen
             _mailStale = true;
         }
 
-        StartRefresh(app, announce: false);
+        Refresh(app, announce: false);
     }
 
     // One call, Canvas + Gmail fetched at the same time (your GetMorningBriefingAsync).
     //  Runs in the background, so the keyboard keeps working while it loads.
-    private void StartRefresh(App app, bool announce)
+    public void Refresh(App app, bool announce)
     {
         if (_refreshing) return;
         _refreshing = true;
@@ -118,6 +118,14 @@ public sealed class HomeScreen : IScreen
         else _mailError = $"Couldn't load Gmail: {App.FriendlyError(briefing.EmailsError!)}\nPress r to retry.";
 
         SaveCache();
+
+        // Expired Google login: sign in again automatically (then this refreshes again by itself)
+        if (briefing.EmailsError is not null && App.IsGoogleLoginExpired(briefing.EmailsError))
+        {
+            _mailError = "Google login expired. Signing in again…";
+            app.RequestGoogleSignIn();
+            return;
+        }
 
         // A failed side keeps showing its saved data (if any); just tell the user
         bool todosFailed = briefing.Todos is null;
@@ -229,7 +237,7 @@ public sealed class HomeScreen : IScreen
         {
             case 'r':
                 if (_refreshing) app.SetStatus("Already updating…");
-                else StartRefresh(app, announce: true);
+                else Refresh(app, announce: true);
                 return true;
             case 'd' when !_mailFocused:
                 // Marking done needs the controller's fresh copy of the feed, which only a fresh fetch fills in
@@ -242,6 +250,9 @@ public sealed class HomeScreen : IScreen
                 return true;
             case 'a':
                 await OpenCoursesAsync(app);
+                return true;
+            case 's':
+                app.Push(new SettingsScreen(_hub));
                 return true;
         }
         return false;

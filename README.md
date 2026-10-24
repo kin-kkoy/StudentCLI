@@ -66,7 +66,8 @@ A modern terminal interface to manage Canvas LMS academic feeds and Gmail commun
 ## Phase 5: Packaging & Distribution
 - [X] Add configuration validation on startup (missing secrets, broken tokens).
   - `.env` is read from `~/.config/TerminalHub/.env` (falls back to `./.env` for `dotnet run`); a missing value prints which one and where to put it.
-  - An expired Google login (7-day limit in Testing mode) shows a message to delete `~/.config/TerminalHub/google-token` and restart.
+  - An expired/revoked Google login is handled automatically: the old login is deleted and the browser opens to sign in again. (The OAuth app is "Internal" to the school's Google org, so Google's 7-day token limit for External/Testing apps doesn't apply.)
+  - Settings screen (`s`): semester start date (saved to `~/.config/TerminalHub/settings.json`) and a manual "Sign in to Google again".
 - [X] Build self-contained native executable (`dotnet publish -c Release -r linux-x64 --self-contained`).
   - Now just `dotnet publish -c Release`: the `.csproj` makes it one self-contained, ReadyToRun-compiled file (~0.2s startup).
   - Native AOT was tested and dropped: Google's auth library (Newtonsoft.Json) crashes under it.

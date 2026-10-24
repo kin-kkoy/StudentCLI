@@ -113,6 +113,10 @@ public class GmailClientService
         return new GmailClientService(gmailService);
     }
 
+    // Deletes the saved Google login (the token file), so the next ConnectAsync opens the browser to sign in again.
+    //  Used when the saved login stops working (e.g. Google's 7-day limit for apps in "Testing" mode).
+    public static Task ForgetSavedLoginAsync() => new FileDataStore(_tokenFolder, true).ClearAsync();
+
     public async Task<Profile> FetchProfileAsync() => await _gmail.Users.GetProfile("me").ExecuteAsync();
 
 
@@ -132,15 +136,30 @@ public class GmailClientService
             return unreadEmails;
 
 
+        // Start ALL the Get requests at once (no await yet), same idea as GetMorningBriefingAsync:
+        //  before: email 1 -> wait -> email 2 -> wait -> ...   (total = sum of all 5)
+        //  now:    all 5 sent together -> wait once            (total = the slowest one)
+        List<Task<Message>> messageTasks = new List<Task<Message>>();
         foreach (var item in listResponse.Messages)
         {
             // build req
             var messageReq = _gmail.Users.Messages.Get("me", item.Id);
             messageReq.Format  = UsersResource.MessagesResource.GetRequest.FormatEnum.Metadata;
-        
-            // send req, get response
-            var messageRes = await messageReq.ExecuteAsync();
 
+            // send req (started, not awaited)
+            messageTasks.Add(messageReq.ExecuteAsync());
+        }
+
+        // Wait for all of them. WhenAll returns the results in the SAME order the tasks were added,
+        //  so the emails stay newest-first like the list response.
+        //  Each one goes through TryGetAsync first, so ONE failed email becomes null instead of failing all of them.
+        Message?[] messages = await Task.WhenAll(messageTasks.Select(TryGetAsync));
+
+
+        foreach (var messageRes in messages)
+        {
+            // Skip the email that failed (e.g. deleted between the list and the get), keep the rest
+            if (messageRes is null) continue;
 
             // Add to list
             unreadEmails.Add(new EmailSummary(
@@ -154,6 +173,21 @@ public class GmailClientService
         }
 
         return unreadEmails;
+
+
+        // Local function (only usable inside this method): waits for one email's request,
+        //  turning a Gmail error into null, same idea as CaptureAsync in HubController
+        static async Task<Message?> TryGetAsync(Task<Message> messageTask)
+        {
+            try
+            {
+                return await messageTask;
+            }
+            catch (GoogleApiException)
+            {
+                return null;
+            }
+        }
     }
 
     public async Task<EmailDetail> FetchEmailContentAsync(string messageID)
