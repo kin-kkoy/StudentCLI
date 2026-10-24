@@ -104,7 +104,9 @@ public class GmailClientService
             new BaseClientService.Initializer
             {
                 HttpClientInitializer = userCredential,
-                ApplicationName = "TerminalHub"
+                ApplicationName = "TerminalHub",
+                // For Error timeout messages. Purely optional
+                HttpClientTimeout = TimeSpan.FromSeconds(20)
             }
         );
 

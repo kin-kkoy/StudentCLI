@@ -51,6 +51,9 @@ public class CanvasService
         //  -> Accept header: "application/json"
         _http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
+
+        // For Error timeout messages. Purely optional
+        _http.Timeout = TimeSpan.FromSeconds(20);
     }
 
 
@@ -180,7 +183,7 @@ public class CanvasService
     // Fetch a single assignment/activity/quiz
     public async Task<Assignment?> FetchAssignmentAsync(string courseID, long assignmentID)
     {
-        HttpResponseMessage response = await _http.GetAsync($"/courses/{courseID}/assignments/{assignmentID}");
+        HttpResponseMessage response = await _http.GetAsync($"courses/{courseID}/assignments/{assignmentID}");
         response.EnsureSuccessStatusCode();
 
         string responsePayload = await response.Content.ReadAsStringAsync();
