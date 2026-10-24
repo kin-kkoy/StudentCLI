@@ -26,7 +26,14 @@ public sealed class HomeScreen : IScreen
     private bool _mailFocused;
     private string? _todoError;
     private string? _mailError;
-    private bool _loaded;
+
+    // Instant start: the saved briefing is shown first ("stale"), then replaced when fresh data arrives
+    private bool _refreshing;
+    private DateTime? _todosSavedAt;        // when the shown to-dos were fetched (null = never loaded)
+    private DateTime? _emailsSavedAt;
+    private bool _todosStale;               // true = showing saved data, not fresh
+    private bool _mailStale;
+    private readonly HashSet<string> _openedEmailIDs = [];   // read this session: hide them even if an older fetch still lists them
 
     public string Title => "Briefing";
 
@@ -38,29 +45,98 @@ public sealed class HomeScreen : IScreen
     public HomeScreen(HubController hub)
     {
         _hub = hub;
-        _todos = new SelectableList<PlannerItem>([], FormatTodo);
-        _emails = new SelectableList<EmailSummary>([], FormatEmail);
+        _todos = new SelectableList<PlannerItem>([], FormatTodo, key: t => $"{t.Type}:{t.PlannableID}");
+        _emails = new SelectableList<EmailSummary>([], FormatEmail, key: e => e.ID);
     }
 
 
     // DATA ===================================================================================
 
-    public async Task RefreshAsync(App app)
+    // Called once at launch: show the saved briefing right away, then fetch fresh data in the background
+    public void Start(App app)
     {
-        // One call, Canvas + Gmail fetched at the same time. If one side fails, the other still shows.
-        var (ok, briefing) = await app.LoadAsync("Fetching Canvas & Gmail…", () => _hub.GetMorningBriefingAsync());
-        _loaded = true;
-        if (!ok) return;    // only happens on an unexpected bug; LoadAsync already showed the error
+        BriefingSnapshot? saved = BriefingCache.Load();
+        if (saved?.Todos is not null)
+        {
+            _todos.SetItems(SortTodos(saved.Todos));
+            _todosSavedAt = saved.TodosSavedAt;
+            _todosStale = true;
+        }
+        if (saved?.Emails is not null)
+        {
+            _emails.SetItems(saved.Emails);
+            _emailsSavedAt = saved.EmailsSavedAt;
+            _mailStale = true;
+        }
 
-        _todoError = briefing.TodosError is null ? null : $"Couldn't load Canvas: {App.FriendlyError(briefing.TodosError)}\nPress r to retry.";
-        _mailError = briefing.EmailsError is null ? null : $"Couldn't load Gmail: {App.FriendlyError(briefing.EmailsError)}\nPress r to retry.";
-
-        if (briefing.Todos is not null) _todos.SetItems(briefing.Todos.OrderBy(t => t.Date ?? DateTime.MaxValue));   // soonest first, no-date last
-        if (briefing.Emails is not null) _emails.SetItems(briefing.Emails);
-
-        if (_todoError is not null && _mailError is not null) app.SetStatus("Couldn't load Canvas or Gmail.", StatusKind.Error);
-        else if (_todoError is not null || _mailError is not null) app.SetStatus("Some data couldn't be loaded.", StatusKind.Warning);
+        StartRefresh(app, announce: false);
     }
+
+    // One call, Canvas + Gmail fetched at the same time (your GetMorningBriefingAsync).
+    //  Runs in the background, so the keyboard keeps working while it loads.
+    private void StartRefresh(App app, bool announce)
+    {
+        if (_refreshing) return;
+        _refreshing = true;
+
+        bool firstLoad = _todosSavedAt is null && _emailsSavedAt is null;
+        app.RunInBackground(firstLoad ? "Fetching Canvas & Gmail…" : "Updating…",
+            () => _hub.GetMorningBriefingAsync(),
+            onSuccess: briefing =>
+            {
+                _refreshing = false;
+                ApplyBriefing(briefing, app, announce);
+            },
+            onError: ex =>
+            {
+                // Only happens on an unexpected bug: GetMorningBriefingAsync captures normal failures itself
+                _refreshing = false;
+                app.SetStatus(App.FriendlyError(ex), StatusKind.Error);
+            });
+    }
+
+    private void ApplyBriefing(MorningBriefing briefing, App app, bool announce)
+    {
+        DateTime now = DateTime.Now;
+
+        if (briefing.Todos is not null)
+        {
+            _todos.SetItems(SortTodos(briefing.Todos));
+            _todosSavedAt = now;
+            _todosStale = false;
+            _todoError = null;
+        }
+        else _todoError = $"Couldn't load Canvas: {App.FriendlyError(briefing.TodosError!)}\nPress r to retry.";
+
+        if (briefing.Emails is not null)
+        {
+            _emails.SetItems(briefing.Emails.Where(e => !_openedEmailIDs.Contains(e.ID)));
+            _emailsSavedAt = now;
+            _mailStale = false;
+            _mailError = null;
+        }
+        else _mailError = $"Couldn't load Gmail: {App.FriendlyError(briefing.EmailsError!)}\nPress r to retry.";
+
+        SaveCache();
+
+        // A failed side keeps showing its saved data (if any); just tell the user
+        bool todosFailed = briefing.Todos is null;
+        bool mailFailed = briefing.Emails is null;
+        if (todosFailed && mailFailed)
+            app.SetStatus("Couldn't refresh Canvas or Gmail. Check your connection.", StatusKind.Error);
+        else if (todosFailed || mailFailed)
+            app.SetStatus($"Couldn't refresh {(todosFailed ? "Canvas" : "Gmail")}{(todosFailed ? _todosSavedAt : _emailsSavedAt) switch { null => ".", _ => ", showing saved data." }}", StatusKind.Warning);
+        else if (announce)
+            app.SetStatus("Up to date", StatusKind.Success);
+    }
+
+    private void SaveCache() => BriefingCache.Save(new BriefingSnapshot(
+        _todosSavedAt, _todosSavedAt is null ? null : _todos.Items.ToList(),
+        _emailsSavedAt, _emailsSavedAt is null ? null : _emails.Items.ToList()));
+
+    // Soonest first, no-date last
+    private static IEnumerable<PlannerItem> SortTodos(IEnumerable<PlannerItem> items) =>
+        items.OrderBy(t => t.Date ?? DateTime.MaxValue);
 
 
     // DRAWING ================================================================================
@@ -84,18 +160,22 @@ public sealed class HomeScreen : IScreen
     private Panel TodoPanel(int width, int height)
     {
         string counter = _todos.Count > 0 ? $" ({_todos.Selected + 1}/{_todos.Count})" : "";
-        string empty = _todoError ?? (_loaded ? "Nothing due. Nice!" : "Loading…");
-        return MakePanel($"Canvas · To-do{counter}", _todos.Render(width - 4, height - 2, !_mailFocused, empty),
+        string empty = _todoError ?? (_todosSavedAt is null ? "Loading…" : "Nothing due. Nice!");
+        return MakePanel($"Canvas · To-do{counter}{SavedNote(_todosStale, _todosSavedAt)}", _todos.Render(width - 4, height - 2, !_mailFocused, empty),
                          Theme.CanvasAccent, focused: !_mailFocused);
     }
 
     private Panel MailPanel(int width, int height)
     {
         string counter = _emails.Count > 0 ? $" ({_emails.Count})" : "";
-        string empty = _mailError ?? (_loaded ? "Inbox zero. No unread mail." : "Loading…");
-        return MakePanel($"Gmail · Unread{counter}", _emails.Render(width - 4, height - 2, _mailFocused, empty),
+        string empty = _mailError ?? (_emailsSavedAt is null ? "Loading…" : "Inbox zero. No unread mail.");
+        return MakePanel($"Gmail · Unread{counter}{SavedNote(_mailStale, _emailsSavedAt)}", _emails.Render(width - 4, height - 2, _mailFocused, empty),
                          Theme.MailAccent, focused: _mailFocused);
     }
+
+    // " · saved 9:12 AM" in the panel title while it's showing saved (not fresh) data
+    private static string SavedNote(bool stale, DateTime? savedAt) =>
+        stale && savedAt is DateTime time ? $" · saved {Theme.EmailTime(time, DateTime.Now)}" : "";
 
     // The focused panel gets a bright, heavy border; the other one is dimmed
     private static Panel MakePanel(string title, IRenderable content, Color accent, bool focused) => new(content)
@@ -148,11 +228,17 @@ public sealed class HomeScreen : IScreen
         switch (key.KeyChar)
         {
             case 'r':
-                await RefreshAsync(app);
-                if (_todoError is null && _mailError is null) app.SetStatus("Refreshed", StatusKind.Success);
+                if (_refreshing) app.SetStatus("Already updating…");
+                else StartRefresh(app, announce: true);
                 return true;
             case 'd' when !_mailFocused:
-                await MarkTodoDoneAsync(app);
+                // Marking done needs the controller's fresh copy of the feed, which only a fresh fetch fills in
+                if (_todosStale)
+                    app.SetStatus(_refreshing
+                        ? "Still updating from Canvas. Try again in a moment."
+                        : "Showing saved data. Press r to refresh before marking things done.", StatusKind.Warning);
+                else
+                    await MarkTodoDoneAsync(app);
                 return true;
             case 'a':
                 await OpenCoursesAsync(app);
@@ -172,6 +258,8 @@ public sealed class HomeScreen : IScreen
         var (ok, email) = await app.LoadAsync("Opening email…", () => _hub.OpenEmailAsync(summary.ID));
         if (!ok) return;
         _emails.Remove(summary);
+        _openedEmailIDs.Add(summary.ID);
+        SaveCache();
 
         app.Push(new DetailScreen(
             kind: "Email",
@@ -271,6 +359,7 @@ public sealed class HomeScreen : IScreen
         {
             case CompleteTodoResult.Completed:
                 _todos.Remove(item);
+                SaveCache();
                 app.SetStatus($"Marked \"{title}\" as done", StatusKind.Success);
                 break;
             case CompleteTodoResult.NotFound:

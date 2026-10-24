@@ -7,6 +7,17 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <!-- Only for `dotnet publish -c Release` (normal build/run are unaffected):
+       one self-contained file, pre-compiled (ReadyToRun) so it starts in ~0.2s instead of warming up a JIT.
+       Native AOT would be even faster, but Google's auth library (Newtonsoft.Json) breaks under it. -->
+  <PropertyGroup Condition="'$(_IsPublishing)' == 'true'">
+    <RuntimeIdentifier>linux-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <PublishReadyToRun>true</PublishReadyToRun>
+    <DebugType>none</DebugType>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="DotNetEnv" Version="3.2.0" />
     <PackageReference Include="Google.Apis.Gmail.v1" Version="1.75.0.4225" />

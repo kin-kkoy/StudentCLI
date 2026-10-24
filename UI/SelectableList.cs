@@ -20,6 +20,7 @@ public sealed class SelectableList<T>
 
     private readonly List<T> _items = [];
     private readonly Func<T, ListLine> _format;
+    private readonly Func<T, string>? _key;     // identifies an item, so the selection survives a refresh
     private int _top;           // index of the first visible item (for scrolling)
     private int _pageSize = 5;  // how many items fit, remembered from the last Render (for PageUp/PageDown)
 
@@ -28,18 +29,26 @@ public sealed class SelectableList<T>
     public T? Current => _items.Count > 0 ? _items[Selected] : default;
 
 
-    public SelectableList(IEnumerable<T> items, Func<T, ListLine> format)
+    public SelectableList(IEnumerable<T> items, Func<T, ListLine> format, Func<T, string>? key = null)
     {
         _format = format;
+        _key = key;
         SetItems(items);
     }
 
     public void SetItems(IEnumerable<T> items)
     {
+        // Remember what was selected, so fresh data doesn't make the cursor jump to a different item
+        string? selectedKey = _key is not null && _items.Count > 0 ? _key(_items[Selected]) : null;
+
         _items.Clear();
         _items.AddRange(items);
-        Selected = Math.Clamp(Selected, 0, Math.Max(0, _items.Count - 1));
+
+        int sameItem = selectedKey is null ? -1 : _items.FindIndex(item => _key!(item) == selectedKey);
+        Selected = sameItem >= 0 ? sameItem : Math.Clamp(Selected, 0, Math.Max(0, _items.Count - 1));
     }
+
+    public IReadOnlyList<T> Items => _items;
 
     public void Remove(T item)
     {

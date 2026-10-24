@@ -19,6 +19,7 @@ namespace CanvasMail.UI;
     │ Redraw triggers:                                          │
     │   - any key press                                         │
     │   - Ctrl+L (manual redraw)                                │
+    │   - background work finished (e.g. fresh briefing)        │
     │   - SIGWINCH (Linux tells us the window was resized)      │
     │   - window size changed (backup check in case a signal    │
     │     arrives before the new size has settled)             │
@@ -49,6 +50,10 @@ public sealed class App
     private string? _status;
     private StatusKind _statusKind;
 
+    // Work running WITHOUT blocking the keyboard (e.g. refreshing the briefing while you browse the saved one)
+    private sealed record BackgroundJob(string Message, Task Work, Action OnFinished);
+    private readonly List<BackgroundJob> _backgroundJobs = [];
+
     public HubController Hub { get; }
 
 
@@ -73,7 +78,7 @@ public sealed class App
         {
             var home = new HomeScreen(Hub);
             _screens.Push(home);
-            await home.RefreshAsync(this);
+            home.Start(this);       // shows the saved briefing instantly + refreshes in the background
 
             while (_running)
             {
@@ -93,9 +98,10 @@ public sealed class App
         }
     }
 
-    // Returns a key, or null when the window was resized and needs a redraw
+    // Returns a key, or null when the screen needs a redraw (resize, background work finished, spinner tick)
     private async Task<ConsoleKeyInfo?> ReadKeyAsync()
     {
+        long waitStarted = Environment.TickCount64;
         while (true)
         {
             if (Console.KeyAvailable)
@@ -104,6 +110,16 @@ public sealed class App
             bool resized = Interlocked.Exchange(ref _resizeSignal, 0) == 1;
             if (resized || (Console.WindowWidth, Console.WindowHeight) != _lastSize)
                 return null;
+
+            if (_backgroundJobs.Count > 0)
+            {
+                if (_backgroundJobs.Any(job => job.Work.IsCompleted)) return null;
+                if (Environment.TickCount64 - waitStarted >= 80)
+                {
+                    _spinnerFrame++;        // keep the bottom-bar spinner moving
+                    return null;
+                }
+            }
 
             await Task.Delay(25);
         }
@@ -171,6 +187,38 @@ public sealed class App
         }
     }
 
+    // Starts work and returns IMMEDIATELY; the user can keep using the app.
+    //  When the work finishes, onSuccess/onError run on the main loop (never on another thread), then the screen redraws.
+    public void RunInBackground<T>(string message, Func<Task<T>> work, Action<T> onSuccess, Action<Exception> onError)
+    {
+        Task<T> task;
+        try
+        {
+            task = work();
+        }
+        catch (Exception ex)
+        {
+            onError(ex);
+            return;
+        }
+
+        _backgroundJobs.Add(new BackgroundJob(message, task, () =>
+        {
+            if (task.IsCompletedSuccessfully) onSuccess(task.Result);
+            else if (task.IsCanceled) onError(new TaskCanceledException());
+            else onError(task.Exception!.InnerException ?? task.Exception);
+        }));
+    }
+
+    private void FinishCompletedBackgroundJobs()
+    {
+        foreach (BackgroundJob job in _backgroundJobs.Where(job => job.Work.IsCompleted).ToList())
+        {
+            _backgroundJobs.Remove(job);
+            job.OnFinished();
+        }
+    }
+
     // Shows "<prompt> (y/n)" in the bottom bar and waits for an answer
     public async Task<bool> ConfirmAsync(string prompt)
     {
@@ -198,6 +246,9 @@ public sealed class App
     {
         HttpRequestException { StatusCode: not null } http => $"Request failed: {(int)http.StatusCode} {http.StatusCode}",
         HttpRequestException => "Couldn't reach the server. Check your connection.",
+        // Google logins in "Testing" mode expire after 7 days -> the saved token stops working
+        Google.Apis.Auth.OAuth2.Responses.TokenResponseException { Error.Error: "invalid_grant" } =>
+            $"Google login expired. Delete {GoogleTokenFolder} and restart to log in again.",
         Google.GoogleApiException google => $"Gmail error: {google.Error?.Message ?? google.Message}",
         TaskCanceledException => "The request timed out.",
         _ => ex.Message
@@ -208,6 +259,9 @@ public sealed class App
 
     private void Render()
     {
+        // Every redraw path goes through here, so finished background work is always picked up
+        FinishCompletedBackgroundJobs();
+
         int width = Console.WindowWidth;
         int height = Console.WindowHeight;
         _lastSize = (width, height);
@@ -288,6 +342,8 @@ public sealed class App
             line1 = new Text($" {SpinnerFrames[_spinnerFrame % SpinnerFrames.Length]} {TextUtil.Truncate(_loadingMessage, width - 5)}", new Style(Theme.MailAccent));
         else if (_status is not null)
             line1 = new Text(TextUtil.Truncate(" " + StatusIcon(_statusKind) + " " + _status, width - 1), new Style(StatusColor(_statusKind)));
+        else if (_backgroundJobs.Count > 0)
+            line1 = new Text($" {SpinnerFrames[_spinnerFrame % SpinnerFrames.Length]} {TextUtil.Truncate(_backgroundJobs[0].Message, width - 5)}", new Style(Theme.Muted));
         else
             line1 = new Text("");
 
@@ -296,6 +352,8 @@ public sealed class App
 
         return new Rows(line1, line2);
     }
+
+    private static readonly string GoogleTokenFolder = "~/.config/TerminalHub/google-token";
 
     private static string StatusIcon(StatusKind kind) => kind switch
     {

@@ -64,6 +64,12 @@ A modern terminal interface to manage Canvas LMS academic feeds and Gmail commun
 ---
 
 ## Phase 5: Packaging & Distribution
-- [ ] Add configuration validation on startup (missing secrets, broken tokens).
-- [ ] Build self-contained native executable (`dotnet publish -c Release -r linux-x64 --self-contained`).
-- [ ] Create global alias / shell shortcut (`hub` or `terminal-hub`).
+- [X] Add configuration validation on startup (missing secrets, broken tokens).
+  - `.env` is read from `~/.config/TerminalHub/.env` (falls back to `./.env` for `dotnet run`); a missing value prints which one and where to put it.
+  - An expired Google login (7-day limit in Testing mode) shows a message to delete `~/.config/TerminalHub/google-token` and restart.
+- [X] Build self-contained native executable (`dotnet publish -c Release -r linux-x64 --self-contained`).
+  - Now just `dotnet publish -c Release`: the `.csproj` makes it one self-contained, ReadyToRun-compiled file (~0.2s startup).
+  - Native AOT was tested and dropped: Google's auth library (Newtonsoft.Json) crashes under it.
+- [X] Create global alias / shell shortcut (`hub` or `terminal-hub`).
+  - Installed as `~/.local/bin/hub`: `install -m 755 bin/Release/net10.0/linux-x64/publish/CanvasMail ~/.local/bin/hub`
+- [X] Instant start: the last briefing is cached in `~/.cache/TerminalHub/briefing.json` and shown immediately while fresh data loads in the background.
